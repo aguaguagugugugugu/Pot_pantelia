@@ -1,9 +1,9 @@
-name: Build musl binary
+name: Build static x86_64 binary
 
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:   # чтобы можно было запускать вручную из вкладки Actions
+  workflow_dispatch:   # запуск вручную из вкладки Actions
 
 jobs:
   build:
@@ -20,16 +20,24 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Build release
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
         run: cargo build --release --target x86_64-unknown-linux-musl
 
       - name: Verify static linking
         run: |
-          file target/x86_64-unknown-linux-musl/release/keyfox
-          ldd target/x86_64-unknown-linux-musl/release/keyfox || true
+          BIN=target/x86_64-unknown-linux-musl/release/keyfox
+          file "$BIN"
+          if readelf -d "$BIN" | grep -q NEEDED; then
+            echo "ERROR: binary has dynamic dependencies"; readelf -d "$BIN" | grep NEEDED; exit 1
+          fi
+          echo "no NEEDED — static ok"
+          ldd "$BIN" || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: keyfox-musl
+          name: keyfox-x86_64-static
           path: target/x86_64-unknown-linux-musl/release/keyfox
           if-no-files-found: error
